@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 import fitz  # PyMuPDF
 import io
 import base64
@@ -7,6 +8,7 @@ from PIL import Image, ImageChops
 import os
 
 app = Flask(__name__)
+CORS(app) 
 
 @app.route('/')
 def home():
@@ -64,3 +66,4 @@ def compare_pdfs():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
