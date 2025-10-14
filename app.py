@@ -18,30 +18,31 @@ def home():
 
 
 @app.route('/compare', methods=['POST'])
-def compare_pdfs():
-    try:
-        # Log what Salesforce is actually sending
-        print("⚡ Received headers:", dict(request.headers))
-        print("⚡ Form fields:", request.form)
-        print("⚡ Files:", request.files)
-        print("⚡ Content length:", request.content_length)
+def compare():
+    print("=== Incoming Request ===")
+    print("Headers:", dict(request.headers))
+    print("Form keys:", list(request.form.keys()))
+    print("Files keys:", list(request.files.keys()))
 
-        pdf1 = request.files.get('pdf1')
-        pdf2 = request.files.get('pdf2')
+    if 'pdf1' not in request.files or 'pdf2' not in request.files:
+        return jsonify({
+            "error": "Missing PDF content",
+            "received_keys": list(request.files.keys()),
+            "note": "Expected 'pdf1' and 'pdf2'"
+        }), 400
 
-        if not pdf1 or not pdf2:
-            return jsonify({
-                "error": "Missing PDF content",
-                "received_files": list(request.files.keys()),
-                "content_length": request.content_length,
-                "headers": dict(request.headers)
-            }), 400
+    file1 = request.files['pdf1']
+    file2 = request.files['pdf2']
 
-        # Continue your comparison logic
-        return jsonify({"status": "success", "summary": "PDFs received!"})
+    print("File1 name:", file1.filename)
+    print("File2 name:", file2.filename)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({
+        "status": "success",
+        "file1": file1.filename,
+        "file2": file2.filename
+    })
+
 
 def extract_text_from_pdf(file):
     reader = PdfReader(io.BytesIO(file.read()))
@@ -54,5 +55,6 @@ def extract_text_from_pdf(file):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
 
