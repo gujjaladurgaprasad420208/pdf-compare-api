@@ -1,10 +1,12 @@
 from flask import Flask, jsonify, request
 from PyPDF2 import PdfReader
+from flask_cors import CORS
 import difflib
 import os
 import io
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/')
 def home():
@@ -62,3 +64,4 @@ def extract_text_from_pdf(file):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
