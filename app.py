@@ -1,46 +1,63 @@
 from flask import Flask, jsonify, request
-from pdf_diff import diff
 from PyPDF2 import PdfReader
-import tempfile
+import difflib
 import os
+import io
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return jsonify({
-        "message": "🚀 PDF Comparison API is live and running on Render!"
+        "message": "🚀 PDF Comparison API is live and running on Render (Text Diff Mode)"
     })
 
 @app.route('/compare', methods=['POST'])
 def compare_pdfs():
     try:
+        # Ensure both files are uploaded
         if 'pdf1' not in request.files or 'pdf2' not in request.files:
             return jsonify({"error": "Missing PDF files"}), 400
 
         pdf1 = request.files['pdf1']
         pdf2 = request.files['pdf2']
 
-        # Save PDFs temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp1, \
-             tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp2:
-            pdf1.save(tmp1.name)
-            pdf2.save(tmp2.name)
+        # Extract text from both PDFs
+        text1 = extract_text_from_pdf(pdf1)
+        text2 = extract_text_from_pdf(pdf2)
 
-            # Perform PDF text diff
-            report = diff(tmp1.name, tmp2.name)
+        # Compare text using difflib
+        diff = list(difflib.ndiff(text1.splitlines(), text2.splitlines()))
+        changes = []
+        for line in diff:
+            if line.startswith('- '):
+                changes.append({"status": "removed", "text": line[2:]})
+            elif line.startswith('+ '):
+                changes.append({"status": "added", "text": line[2:]})
+            elif line.startswith('? '):
+                changes.append({"status": "modified", "text": line[2:]})
 
-        # Clean up
-        os.unlink(tmp1.name)
-        os.unlink(tmp2.name)
+        result_summary = (
+            "No differences found" if not changes else f"{len(changes)} differences detected"
+        )
 
         return jsonify({
             "status": "success",
-            "differences": report,
-            "summary": f"Found {len(report)} differences" if report else "No differences found"
+            "summary": result_summary,
+            "differences": changes
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+def extract_text_from_pdf(file):
+    """Extract all text from a PDF using PyPDF2"""
+    reader = PdfReader(io.BytesIO(file.read()))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+    return text
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
