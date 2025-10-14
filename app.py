@@ -15,16 +15,19 @@ def home():
 @app.route('/compare', methods=['POST'])
 def compare_pdfs():
     try:
-        # If Salesforce sends JSON with file IDs
+        # Debugging: check what Salesforce sends
+        content_type = request.headers.get("Content-Type", "")
+        print(f"📩 Content-Type: {content_type}")
+        data = request.get_data(as_text=True)
+        print(f"📦 Raw Body: {data}")
+
+        # If JSON payload
         if request.is_json:
             data = request.get_json()
             file1_id = data.get("file1Id")
             file2_id = data.get("file2Id")
-            if not file1_id or not file2_id:
-                return jsonify({"error": "Missing file IDs"}), 400
+            print(f"🧾 File1Id: {file1_id}, File2Id: {file2_id}")
 
-            # 🔹 Replace this with your actual Salesforce file download logic (for local test, skip)
-            # For now, just respond with dummy comparison
             comparison = [
                 {"text1": "Address: 123 Main St", "text2": "Address: 123 Main Street", "status": "diff"},
                 {"text1": "Product: Chemical A", "text2": "Product: Chemical B", "status": "diff"},
@@ -32,20 +35,15 @@ def compare_pdfs():
             ]
             return jsonify({"status": "ok", "comparison": comparison}), 200
 
-        # If Postman or another client uploads files directly
-        elif 'file1' in request.files and 'file2' in request.files:
-            file1 = request.files['file1']
-            file2 = request.files['file2']
-            text1 = extract_text_from_pdf(file1)
-            text2 = extract_text_from_pdf(file2)
-            comparison = compare_texts(text1, text2)
-            return jsonify({"status": "ok", "comparison": comparison}), 200
-
-        else:
-            return jsonify({"error": "No valid files or JSON received"}), 400
+        return jsonify({
+            "error": "Invalid or missing JSON",
+            "received_body": data,
+            "content_type": content_type
+        }), 400
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 def extract_text_from_pdf(file):
@@ -72,3 +70,4 @@ def compare_texts(text1, text2):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
