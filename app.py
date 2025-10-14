@@ -16,52 +16,32 @@ def home():
         "message": "🚀 PDF Comparison API is live and running on Render (Text Diff Mode)"
     })
 
+
 @app.route('/compare', methods=['POST'])
 def compare_pdfs():
     try:
-        # If normal file upload worked
-        if 'pdf1' in request.files and 'pdf2' in request.files:
-            pdf1 = request.files['pdf1']
-            pdf2 = request.files['pdf2']
-            text1 = extract_text_from_pdf(pdf1)
-            text2 = extract_text_from_pdf(pdf2)
-        else:
-            # Fallback: Salesforce sometimes sends raw multipart bytes
-            data = request.get_data()
-            import re, io
-            parts = re.split(b'----Boundary[0-9]+', data)
-            pdfs = []
-            for part in parts:
-                if b'%PDF' in part:
-                    start = part.find(b'%PDF')
-                    end = part.rfind(b'%%EOF') + len(b'%%EOF')
-                    pdfs.append(part[start:end])
-            if len(pdfs) < 2:
-                return jsonify({"error": "Missing PDF content"}), 400
+        # Log what Salesforce is actually sending
+        print("⚡ Received headers:", dict(request.headers))
+        print("⚡ Form fields:", request.form)
+        print("⚡ Files:", request.files)
+        print("⚡ Content length:", request.content_length)
 
-            text1 = extract_text_from_pdf(io.BytesIO(pdfs[0]))
-            text2 = extract_text_from_pdf(io.BytesIO(pdfs[1]))
+        pdf1 = request.files.get('pdf1')
+        pdf2 = request.files.get('pdf2')
 
-        diff = list(difflib.ndiff(text1.splitlines(), text2.splitlines()))
-        changes = []
-        for line in diff:
-            if line.startswith('- '):
-                changes.append({"status": "removed", "text": line[2:]})
-            elif line.startswith('+ '):
-                changes.append({"status": "added", "text": line[2:]})
-            elif line.startswith('? '):
-                changes.append({"status": "modified", "text": line[2:]})
+        if not pdf1 or not pdf2:
+            return jsonify({
+                "error": "Missing PDF content",
+                "received_files": list(request.files.keys()),
+                "content_length": request.content_length,
+                "headers": dict(request.headers)
+            }), 400
 
-        summary = "No differences found" if not changes else f"{len(changes)} differences detected"
+        # Continue your comparison logic
+        return jsonify({"status": "success", "summary": "PDFs received!"})
 
-        return jsonify({
-            "status": "success",
-            "summary": summary,
-            "differences": changes
-        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 def extract_text_from_pdf(file):
     reader = PdfReader(io.BytesIO(file.read()))
@@ -74,4 +54,5 @@ def extract_text_from_pdf(file):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
