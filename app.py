@@ -27,22 +27,20 @@ def compare():
     if 'pdf1' not in request.files or 'pdf2' not in request.files:
         return jsonify({
             "error": "Missing PDF content",
-            "received_keys": list(request.files.keys()),
-            "note": "Expected 'pdf1' and 'pdf2'"
+            "note": "Expected 'pdf1' and 'pdf2'",
+            "received_keys": list(request.files.keys())
         }), 400
 
-    file1 = request.files['pdf1']
-    file2 = request.files['pdf2']
+    pdf1 = request.files['pdf1']
+    pdf2 = request.files['pdf2']
 
-    print("File1 name:", file1.filename)
-    print("File2 name:", file2.filename)
+    print(f"Received: {pdf1.filename} and {pdf2.filename}")
 
     return jsonify({
         "status": "success",
-        "file1": file1.filename,
-        "file2": file2.filename
+        "pdf1": pdf1.filename,
+        "pdf2": pdf2.filename
     })
-
 
 def extract_text_from_pdf(file):
     reader = PdfReader(io.BytesIO(file.read()))
@@ -55,6 +53,7 @@ def extract_text_from_pdf(file):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
