@@ -4,6 +4,7 @@ from flask_cors import CORS
 import difflib
 import os
 import io
+import base64
 
 app = Flask(__name__)
 
@@ -19,28 +20,40 @@ def home():
 
 @app.route('/compare', methods=['POST'])
 def compare():
-    print("=== Incoming Request ===")
-    print("Headers:", dict(request.headers))
-    print("Form keys:", list(request.form.keys()))
-    print("Files keys:", list(request.files.keys()))
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data received"}), 400
 
-    if 'pdf1' not in request.files or 'pdf2' not in request.files:
+        pdf1_name = data.get('pdf1_name')
+        pdf2_name = data.get('pdf2_name')
+        pdf1_data = data.get('pdf1_data')
+        pdf2_data = data.get('pdf2_data')
+
+        if not pdf1_data or not pdf2_data:
+            return jsonify({
+                "error": "Missing PDF content",
+                "received_keys": list(data.keys())
+            }), 400
+
+        # Decode base64 to binary
+        pdf1_bytes = base64.b64decode(pdf1_data)
+        pdf2_bytes = base64.b64decode(pdf2_data)
+
+        # For testing: save locally (optional)
+        with open(pdf1_name, 'wb') as f1:
+            f1.write(pdf1_bytes)
+        with open(pdf2_name, 'wb') as f2:
+            f2.write(pdf2_bytes)
+
+        print(f"✅ Received and saved {pdf1_name} & {pdf2_name}")
         return jsonify({
-            "error": "Missing PDF content",
-            "note": "Expected 'pdf1' and 'pdf2'",
-            "received_keys": list(request.files.keys())
-        }), 400
-
-    pdf1 = request.files['pdf1']
-    pdf2 = request.files['pdf2']
-
-    print(f"Received: {pdf1.filename} and {pdf2.filename}")
-
-    return jsonify({
-        "status": "success",
-        "pdf1": pdf1.filename,
-        "pdf2": pdf2.filename
-    })
+            "status": "success",
+            "pdf1_name": pdf1_name,
+            "pdf2_name": pdf2_name
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 def extract_text_from_pdf(file):
     reader = PdfReader(io.BytesIO(file.read()))
@@ -53,6 +66,7 @@ def extract_text_from_pdf(file):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
