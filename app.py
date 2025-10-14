@@ -1,69 +1,64 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
+import fitz  # PyMuPDF
 import io
 import base64
-from PyPDF2 import PdfReader
-import difflib
+from pdf2image import convert_from_bytes
+from PIL import Image, ImageChops
 import os
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "✅ Flask PDF Comparison API is Running"
+    return "✅ Visual PDF Diff API Running"
 
 @app.route('/compare', methods=['POST'])
 def compare_pdfs():
     try:
-        # Check request content
-        if "multipart/form-data" in request.content_type:
-            # Get raw request body
-            raw_data = request.get_data(as_text=True)
-            print("📦 Raw incoming data (truncated):", raw_data[:200])
+        file1 = request.files.get('file1')
+        file2 = request.files.get('file2')
 
-            # Extract base64 strings (split by our boundary)
-            # This is a minimal parser since Salesforce sends as base64
-            import re
-            base64_blocks = re.findall(r'Content-Type: application/pdf\r\n\r\n([A-Za-z0-9+/=\r\n]+)', raw_data)
-            if len(base64_blocks) < 2:
-                return jsonify({"error": "Could not extract both PDF parts"}), 400
+        if not file1 or not file2:
+            return jsonify({"error": "Missing PDF files"}), 400
 
-            pdf1_bytes = base64.b64decode(base64_blocks[0])
-            pdf2_bytes = base64.b64decode(base64_blocks[1])
+        pdf1 = file1.read()
+        pdf2 = file2.read()
 
-            text1 = extract_text_from_pdf(io.BytesIO(pdf1_bytes))
-            text2 = extract_text_from_pdf(io.BytesIO(pdf2_bytes))
-            diffs = compare_texts(text1, text2)
-            return jsonify({"status": "ok", "comparison": diffs}), 200
+        # Convert both PDFs to images (page by page)
+        pages1 = convert_from_bytes(pdf1)
+        pages2 = convert_from_bytes(pdf2)
 
-        return jsonify({"error": "Unsupported content type"}), 400
+        diff_pages = []
+        for i in range(min(len(pages1), len(pages2))):
+            img1 = pages1[i].convert('RGB')
+            img2 = pages2[i].convert('RGB')
+
+            diff = ImageChops.difference(img1, img2)
+            # Highlight changes
+            overlay = img1.copy()
+            for x in range(img1.width):
+                for y in range(img1.height):
+                    r, g, b = diff.getpixel((x, y))
+                    if r + g + b > 50:  # significant pixel difference
+                        overlay.putpixel((x, y), (255, 0, 0))  # red
+
+            diff_pages.append(overlay)
+
+        # Merge all difference pages into a new PDF
+        output_pdf = io.BytesIO()
+        diff_pages[0].save(output_pdf, save_all=True, append_images=diff_pages[1:], format="PDF")
+        output_pdf.seek(0)
+
+        base64_pdf = base64.b64encode(output_pdf.read()).decode('utf-8')
+
+        return jsonify({
+            "status": "ok",
+            "message": "Visual diff generated successfully",
+            "diff_pdf": base64_pdf
+        }), 200
 
     except Exception as e:
-        print("🔥 Error:", e)
         return jsonify({"error": str(e)}), 500
-
-
-def extract_text_from_pdf(file_stream):
-    text = ""
-    reader = PdfReader(file_stream)
-    for page in reader.pages:
-        page_text = page.extract_text() or ""
-        text += page_text + "\n"
-    return text.strip()
-
-
-def compare_texts(text1, text2):
-    lines1 = text1.splitlines()
-    lines2 = text2.splitlines()
-    diff = difflib.ndiff(lines1, lines2)
-    result = []
-    for line in diff:
-        if line.startswith('  '):
-            result.append({"text1": line[2:], "text2": line[2:], "status": "match"})
-        elif line.startswith('- '):
-            result.append({"text1": line[2:], "text2": "", "status": "diff"})
-        elif line.startswith('+ '):
-            result.append({"text1": "", "text2": line[2:], "status": "diff"})
-    return result
 
 
 if __name__ == "__main__":
