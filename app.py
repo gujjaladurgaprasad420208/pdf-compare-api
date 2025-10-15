@@ -13,30 +13,28 @@ def home():
     })
 
 
-@app.route('/compare', methods=['POST'])
+@app.route("/compare", methods=["POST"])
 def compare():
     try:
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data received"}), 400
 
-        pdf1_name = data.get('pdf1_name', 'file1.pdf')
-        pdf2_name = data.get('pdf2_name', 'file2.pdf')
-        pdf1_data = data.get('pdf1_data')
-        pdf2_data = data.get('pdf2_data')
+        pdf1_name = data.get("pdf1_name", "file1.pdf")
+        pdf2_name = data.get("pdf2_name", "file2.pdf")
+        pdf1_data = data.get("pdf1_data")
+        pdf2_data = data.get("pdf2_data")
 
         if not pdf1_data or not pdf2_data:
             return jsonify({"error": "Missing PDF content"}), 400
 
-        # Decode and extract text
-        pdf1_bytes = base64.b64decode(pdf1_data)
-        pdf2_bytes = base64.b64decode(pdf2_data)
+        # 🔹 Decode and extract text
+        text1 = extract_text_from_pdf(io.BytesIO(base64.b64decode(pdf1_data)))
+        text2 = extract_text_from_pdf(io.BytesIO(base64.b64decode(pdf2_data)))
 
-        text1 = extract_text_from_pdf(io.BytesIO(pdf1_bytes))
-        text2 = extract_text_from_pdf(io.BytesIO(pdf2_bytes))
-
-        # 🔍 Generate side-by-side colored HTML diff
-        html_diff = difflib.HtmlDiff().make_file(
+        # 🔹 Generate HTML diff
+        differ = difflib.HtmlDiff(wrapcolumn=100)
+        diff_html = differ.make_file(
             text1.splitlines(),
             text2.splitlines(),
             fromdesc=pdf1_name,
@@ -45,17 +43,34 @@ def compare():
             numlines=2
         )
 
-        # ✅ Return both status and visual HTML
+        # 🔹 Add simple readable CSS
+        styled_html = f"""
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <style>
+                body {{ font-family: 'Segoe UI', sans-serif; background:#f9f9f9; }}
+                table.diff {{ width:100%; border-collapse: collapse; }}
+                td.diff_header {{ background:#ddd; font-weight:bold; text-align:center; }}
+                td.diff_next {{ background:#f7f7f7; }}
+                td.diff_add {{ background:#d4edda; color:#155724; }}
+                td.diff_sub {{ background:#f8d7da; color:#721c24; }}
+                td.diff_chg {{ background:#fff3cd; color:#856404; }}
+                td, th {{ padding:6px 8px; border:1px solid #ccc; vertical-align:top; }}
+            </style>
+        </head>
+        <body>{diff_html}</body>
+        </html>
+        """
+
         return jsonify({
             "status": "success",
             "pdf1_name": pdf1_name,
             "pdf2_name": pdf2_name,
-            "visual_html": html_diff
+            "visual_html": styled_html
         })
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 # -----------------------------------------------------
 # Extract Text
@@ -160,4 +175,5 @@ def generate_side_by_side_html(text1, text2, pdf1_name, pdf2_name):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
