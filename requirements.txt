@@ -4,8 +4,7 @@ flask-cors==4.0.0
 gunicorn==21.2.0
 
 # === PDF & Text Processing ===
-PyPDF2==3.0.1    # For PDF text extraction
-difflib==0.1     # Included by default, but safe to specify for clarity (optional)
+PyPDF2==3.0.1
 
 # === Networking ===
-requests==2.31.0 # For external API testing if needed
+requests==2.31.0
