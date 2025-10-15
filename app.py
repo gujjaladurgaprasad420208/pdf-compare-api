@@ -13,44 +13,44 @@ def home():
     })
 
 
-@app.route("/compare", methods=["POST"])
+@app.route('/compare', methods=['POST'])
 def compare():
-    """
-    Compare two base64-encoded PDFs and return a visually formatted
-    HTML snippet showing text side-by-side with color highlights.
-    """
     try:
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data received"}), 400
 
-        pdf1_name = data.get("pdf1_name")
-        pdf2_name = data.get("pdf2_name")
-        pdf1_data = data.get("pdf1_data")
-        pdf2_data = data.get("pdf2_data")
+        pdf1_name = data.get('pdf1_name', 'file1.pdf')
+        pdf2_name = data.get('pdf2_name', 'file2.pdf')
+        pdf1_data = data.get('pdf1_data')
+        pdf2_data = data.get('pdf2_data')
 
         if not pdf1_data or not pdf2_data:
-            return jsonify({
-                "error": "Missing PDF content",
-                "received_keys": list(data.keys())
-            }), 400
+            return jsonify({"error": "Missing PDF content"}), 400
 
-        # Decode PDFs
+        # Decode and extract text
         pdf1_bytes = base64.b64decode(pdf1_data)
         pdf2_bytes = base64.b64decode(pdf2_data)
 
-        # Extract text
         text1 = extract_text_from_pdf(io.BytesIO(pdf1_bytes))
         text2 = extract_text_from_pdf(io.BytesIO(pdf2_bytes))
 
-        # Generate HTML diff (side by side)
-        html_result = generate_side_by_side_html(text1, text2, pdf1_name, pdf2_name)
+        # 🔍 Generate side-by-side colored HTML diff
+        html_diff = difflib.HtmlDiff().make_file(
+            text1.splitlines(),
+            text2.splitlines(),
+            fromdesc=pdf1_name,
+            todesc=pdf2_name,
+            context=True,
+            numlines=2
+        )
 
+        # ✅ Return both status and visual HTML
         return jsonify({
             "status": "success",
             "pdf1_name": pdf1_name,
             "pdf2_name": pdf2_name,
-            "visual_html": html_result
+            "visual_html": html_diff
         })
 
     except Exception as e:
@@ -160,3 +160,4 @@ def generate_side_by_side_html(text1, text2, pdf1_name, pdf2_name):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
